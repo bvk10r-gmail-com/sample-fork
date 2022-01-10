@@ -7,7 +7,7 @@ pipeline {
   stages {
     stage ('Checkout') {
       steps {
-      git branch: 'main/*', url: 'https://github.com/vams-cmd/CT_Assignments.git'
+      git branch: '*/main', url: 'https://github.com/vams-cmd/CT_Assignments.git'
       }
     }  
     stage ('Build') {
