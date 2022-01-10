@@ -15,30 +15,66 @@ pipeline {
       sh 'mvn clean install -f webapp/pom.xml'
       }
     }
-    stage('Code Quality') {
+    stage ('Code Quality') {
+      steps {
+          withSonarQubeEnv('SonarQube') {
+          sh 'mvn -f webapp/pom.xml sonar:sonar'
+          }
+      }
+    }
+    stage ('send build artifacts') {
+        agent {
+        label 'jenkins-slave1'
+        }
         steps {
-            withSonarQubeEnv('SonarQube') {
-            sh 'mvn sonar:sonar -f webapp/pom.xml'
-            }    
+            sh '''
+            cp /home/ubuntu/jenkins/workspace/Assignment_two/webapp/target/webapp.war /home/ubuntu/docker
+            '''
         }
     }
-    stage ('Dev Deployment') {
-      steps {
-      sshPublisher(publishers: [sshPublisherDesc(configName: 'Dockerhost', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'cd /home/dockeradmin; docker stop project_image_container; docker rm project_image_container; docker rmi project_image; docker build -t project_image .; docker run -d --name project_image_container -p 8080:8080 project_image; ', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '.', remoteDirectorySDF: false, removePrefix: 'webapp/target', sourceFiles: 'webapp/target/*.war')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])
-      }
-  post {
-      always {
-          emailext body: 'approval request with testing status', recipientProviders: [[$class: 'DevelopersRecipientProvider'], [$class: 'RequesterRecipientProvider']], subject: 'Test'
+    stage ('push image to ECR') {
+        agent {
+        label 'jenkins-slave1'
         }
-      }
+        steps {
+            sh '''
+            cd /home/ubuntu/docker
+            aws eks --region us-east-1 update-kubeconfig --name demo
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 773567626102.dkr.ecr.us-east-1.amazonaws.com
+            docker build -t assignment_two .
+            docker tag assignment_two:latest 773567626102.dkr.ecr.us-east-1.amazonaws.com/assignment_two:latest
+            docker push 773567626102.dkr.ecr.us-east-1.amazonaws.com/assignment_two:latest
+            '''
+        }
     }
-    stage ('DEV Approve') {
-      steps {
-      echo "Taking approval from DEV Manager for QA Deployment"
-        timeout(time: 7, unit: 'DAYS') {
-        input message: 'Do you want to deploy?', submitter: 'admin'
+    stage ('Creating EKS cluster') {
+        agent {
+        label 'jenkins-slave1'
         }
-      }
+        steps {
+            sh '''
+            cd /home/ubuntu/git/CT_Assignments/terraform
+            terraform init
+            terraform plan
+            terraform apply -auto-approve
+            '''
+        }
+    }
+    stage ('Deployment') {
+        agent {
+        label 'jenkins-slave1'
+        }
+        steps {
+            sh '''
+            cd /home/ubuntu/git/CT_Assignments/k8s_manifest
+            aws eks --region us-east-1 update-kubeconfig --name demo
+            kubectl apply -f aws-test.yaml
+            kubectl apply -f deployment.yaml
+            kubectl apply -f public-lb.yaml
+            kubectl apply -f private-lb.yaml
+            kubectl apply -f cluster-autoscaler.yaml
+            '''
+        }
     }
   }
 }
