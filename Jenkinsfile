@@ -7,7 +7,7 @@ pipeline {
   stages {
     stage ('Checkout') {
       steps {
-      git branch: '*/main', url: 'https://github.com/vams-cmd/CT_Assignments.git'
+      git branch: 'main', url: 'https://github.com/vams-cmd/CT_Assignments.git'
       }
     }  
     stage ('Build') {
@@ -68,6 +68,11 @@ pipeline {
             sh '''
             cd /home/ubuntu/git/CT_Assignments/k8s_manifest
             aws eks --region us-east-1 update-kubeconfig --name demo
+            kubectl delete -f aws-test.yaml
+            kubectl delete -f deployment.yaml
+            kubectl delete -f public-lb.yaml
+            kubectl delete -f private-lb.yaml
+            kubectl delete -f cluster-autoscaler.yaml
             kubectl apply -f aws-test.yaml
             kubectl apply -f deployment.yaml
             kubectl apply -f public-lb.yaml
