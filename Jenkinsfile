@@ -7,7 +7,7 @@ pipeline {
   stages {
     stage ('Checkout') {
       steps {
-      git branch: 'main', credentialsId: 'cd6f0f77-d845-4a9c-bc44-26b9c58b60d5', url: 'https://github.com/vams-cmd/REDDY.git'
+      git branch: 'main/*', url: 'https://github.com/vams-cmd/CT_Assignments.git'
       }
     }  
     stage ('Build') {
